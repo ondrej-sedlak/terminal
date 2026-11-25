@@ -1,0 +1,14 @@
+[
+{
+  "directory": "/home/dell/CVUT/PCC/terminal/build",
+  "command": "/usr/bin/c++ -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/dispatch.dir/main.cpp.o -c /home/dell/CVUT/PCC/terminal/main.cpp",
+  "file": "/home/dell/CVUT/PCC/terminal/main.cpp",
+  "output": "/home/dell/CVUT/PCC/terminal/build/CMakeFiles/dispatch.dir/main.cpp.o"
+},
+{
+  "directory": "/home/dell/CVUT/PCC/terminal/build",
+  "command": "/usr/bin/c++ -O3 -DNDEBUG -std=gnu++17 -o CMakeFiles/dispatch.dir/NetworkMap.cpp.o -c /home/dell/CVUT/PCC/terminal/NetworkMap.cpp",
+  "file": "/home/dell/CVUT/PCC/terminal/NetworkMap.cpp",
+  "output": "/home/dell/CVUT/PCC/terminal/build/CMakeFiles/dispatch.dir/NetworkMap.cpp.o"
+}
+]
