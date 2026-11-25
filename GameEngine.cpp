@@ -4,24 +4,36 @@
 #include <string>
 #include <thread>
 
-namespace {
+namespace
+{
 
-char dirChar(int velRow, int velCol) {
-    if (velRow < 0) return '^';
-    if (velRow > 0) return 'v';
-    if (velCol < 0) return '<';
-    if (velCol > 0) return '>';
+char dirCharOf(int dr, int dc)
+{
+    if (dr < 0)
+        return '^';
+    if (dr > 0)
+        return 'v';
+    if (dc < 0)
+        return '<';
+    if (dc > 0)
+        return '>';
     return '.';
 }
 
-// Normalizes one input line to a command: lowercase WASD and
+// Normalizes one input to a command: lowercase WASD and
 // arrow-key escape sequences (Up/Down/Right/Left = ESC [ A/B/C/D).
-std::string normalize(std::string cmd) {
-    if (cmd == "\x1b[A") return "w";
-    if (cmd == "\x1b[B") return "s";
-    if (cmd == "\x1b[C") return "d";
-    if (cmd == "\x1b[D") return "a";
-    if (cmd.size() == 1 && cmd[0] >= 'A' && cmd[0] <= 'Z') {
+std::string normalize(std::string cmd)
+{
+    if (cmd == "\x1b[A")
+        return "w";
+    if (cmd == "\x1b[B")
+        return "s";
+    if (cmd == "\x1b[C")
+        return "d";
+    if (cmd == "\x1b[D")
+        return "a";
+    if (cmd.size() == 1 && cmd[0] >= 'A' && cmd[0] <= 'Z')
+    {
         cmd[0] = static_cast<char>(cmd[0] - 'A' + 'a');
     }
     return cmd;
@@ -29,43 +41,51 @@ std::string normalize(std::string cmd) {
 
 } // namespace
 
-GameEngine::GameEngine(const NetworkMap& map, InputHandler& input)
-    : map_(map),
-      input_(input),
-      playerRow_(map.startRow()),
-      playerCol_(map.startCol()) {}
+GameEngine::GameEngine(const NetworkMap& map, InputHandler& input) :
+    map_(map),
+    input_(input),
+    node_(map.startNode()),
+    playerRow_(map.startRow()),
+    playerCol_(map.startCol())
+{}
 
-void GameEngine::run() {
+void GameEngine::run()
+{
     renderer_.hideCursor();
 
     using namespace std::chrono;
-    const auto tick = milliseconds(100); // one cell per 100 ms while sliding
+    const auto tick = milliseconds(100); // one path cell per 100 ms while travelling
 
-    while (running_ && !input_.eof()) {
+    while (running_ && !input_.eof())
+    {
         auto frameStart = steady_clock::now();
 
         // Consume all pending commands; the last one wins.
         std::string cmd;
-        while (input_.poll(cmd)) {
+        while (input_.poll(cmd))
+        {
             handleCommand(normalize(cmd));
         }
-        if (!running_) {
+        if (!running_)
+        {
             break;
         }
 
         movePacket();
 
         renderer_.drawFrame(map_, playerRow_, playerCol_);
-        renderer_.drawPrompt(dirChar(velRow_, velCol_));
+        renderer_.drawPrompt(dirChar());
 
-        if (atExit()) {
+        if (atExit())
+        {
             won_ = true;
             renderer_.message("\033[32mACCESS GRANTED - you reached the exit node.\033[0m");
             break;
         }
 
         auto elapsed = steady_clock::now() - frameStart;
-        if (elapsed < tick) {
+        if (elapsed < tick)
+        {
             std::this_thread::sleep_for(tick - elapsed);
         }
     }
@@ -73,66 +93,101 @@ void GameEngine::run() {
     renderer_.showCursor();
 }
 
-void GameEngine::handleCommand(const std::string& cmd) {
-    int dr = 0, dc = 0;
-    bool steer = true;
-    if (cmd == "q") {
+void GameEngine::handleCommand(const std::string& cmd)
+{
+    if (cmd == "q")
+    {
         running_ = false;
-        steer = false;
-    } else if (cmd == "w") {
+        return;
+    }
+    if (moving_)
+    {
+        return; // travelling: wait until the packet reaches the next node
+    }
+    int dr = 0, dc = 0;
+    if (cmd == "w")
+    {
         dr = -1;
-    } else if (cmd == "s") {
+    }
+    else if (cmd == "s")
+    {
         dr = 1;
-    } else if (cmd == "a") {
+    }
+    else if (cmd == "a")
+    {
         dc = -1;
-    } else if (cmd == "d") {
+    }
+    else if (cmd == "d")
+    {
         dc = 1;
-    } else if (cmd == "x") {
-        velRow_ = 0; velCol_ = 0; // stop now
-        hasBuf_ = false;
-        steer = false;
-    } else {
-        steer = false;
     }
-    if (steer) {
-        bufRow_ = dr; bufCol_ = dc; hasBuf_ = true;
-        if (velRow_ == 0 && velCol_ == 0) {
-            velRow_ = dr; velCol_ = dc; // start moving immediately
-        }
+    else
+    {
+        return; // not a direction key
     }
+    tryStart(dr, dc); // standing on a node: leave immediately
 }
 
-void GameEngine::movePacket() {
-    // Pac-Man style: the packet keeps moving in its current direction.
-    if (velRow_ == 0 && velCol_ == 0) {
+bool GameEngine::tryStart(int dr, int dc)
+{
+    for (const auto& edge : map_.edgesFrom(node_))
+    {
+        if (edge.dirRow == dr && edge.dirCol == dc)
+        {
+            moving_ = true;
+            curEdge_ = edge;
+            edgePos_ = 0;
+            playerRow_ = edge.path[0].first;
+            playerCol_ = edge.path[0].second;
+            return true;
+        }
+    }
+    return false; // no path in that direction
+}
+
+void GameEngine::movePacket()
+{
+    if (!moving_)
+    {
         return;
     }
     ++moveCounter_;
-    // Terminal cells are about twice as tall as they are wide, so step
-    // vertically only every second tick -> all directions look equally fast.
-    bool stepNow = (velCol_ != 0) || (moveCounter_ % 2 == 0);
-    if (!stepNow) {
+    int next = edgePos_ + 1;
+    if (next >= static_cast<int>(curEdge_.path.size()))
+    {
         return;
     }
-    // Turn buffer: if the buffered direction is open right now, take it.
-    if (hasBuf_ && (bufRow_ != velRow_ || bufCol_ != velCol_) &&
-        map_.isOpen(playerRow_ + bufRow_, playerCol_ + bufCol_)) {
-        velRow_ = bufRow_;
-        velCol_ = bufCol_;
-        hasBuf_ = false;
+    // Terminal cells are about twice as tall as they are wide, so step
+    // vertically only every second tick -> all directions look equally fast.
+    int dr = curEdge_.path[next].first - curEdge_.path[edgePos_].first;
+    bool stepNow = (dr == 0) || (moveCounter_ % 2 == 0);
+    if (!stepNow)
+    {
+        return;
     }
-    int newRow = playerRow_ + velRow_;
-    int newCol = playerCol_ + velCol_;
-    if (map_.isOpen(newRow, newCol)) {
-        playerRow_ = newRow;
-        playerCol_ = newCol;
-    } else {
-        velRow_ = 0; // slammed into a wall, packet stops
-        velCol_ = 0;
-        hasBuf_ = false;
+    edgePos_ = next;
+    playerRow_ = curEdge_.path[edgePos_].first;
+    playerCol_ = curEdge_.path[edgePos_].second;
+    if (edgePos_ == static_cast<int>(curEdge_.path.size()) - 1)
+    {
+        // Arrived at the next node and wait for the next keypress.
+        node_ = curEdge_.toNode;
+        moving_ = false;
     }
 }
 
-bool GameEngine::atExit() const {
-    return playerRow_ == map_.exitRow() && playerCol_ == map_.exitCol();
+bool GameEngine::atExit() const
+{
+    return node_ == map_.exitNode();
+}
+
+char GameEngine::dirChar() const
+{
+    if (moving_ && edgePos_ + 1 < static_cast<int>(curEdge_.path.size()))
+    {
+        int dr = curEdge_.path[edgePos_ + 1].first - curEdge_.path[edgePos_].first;
+        int dc = curEdge_.path[edgePos_ + 1].second - curEdge_.path[edgePos_].second;
+        return dirCharOf(dr, dc);
+    }
+    return '.';
 }

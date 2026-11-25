@@ -19,14 +19,7 @@ std::vector<std::string> Menu::discoverLevels()
 {
     // Level files are levels/level1.txt, level2.txt, ...
     std::vector<std::string> found;
-    std::string base = "levels/";
-    {
-        std::ifstream f("levels/level1.txt");
-        if (!f.is_open())
-        {
-            base = "../levels/"; // running from inside build/
-        }
-    }
+    const std::string base = "levels/"; // game always runs from the project root
     for (int i = 1;; ++i)
     {
         std::string path = base + "level" + std::to_string(i) + ".txt";
@@ -65,7 +58,7 @@ void Menu::printMenu() const
     {
         std::cout << "  (no levels found in levels/)\n\n";
     }
-    std::cout << "Choice: " << std::flush;
+    std::cout << "Choice (single key): " << std::flush;
 }
 
 void Menu::run()
@@ -89,7 +82,7 @@ void Menu::run()
             {
                 std::cout << "  " << (i + 1) << ") " << levels_[i] << '\n';
             }
-            std::cout << "  0) Back\nLevel: " << std::flush;
+            std::cout << "  0) Back\nLevel (single key): " << std::flush;
             std::string pick = readLine();
             int idx = std::atoi(pick.c_str()) - 1;
             if (idx >= 0 && idx < static_cast<int>(levels_.size()))

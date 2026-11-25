@@ -7,8 +7,10 @@
 #include <string>
 #include <thread>
 
-// Reads lines from stdin on a separate thread so the game loop
-// can run in real time without blocking on input.
+// Reads single keypresses from stdin on a separate thread so the game
+// loop can run in real time without blocking on input. Raw mode is
+// enabled via "stty raw" (same approach as the course tic_tac_toe
+// sample), so no termios.h is needed - only <cstdlib>.
 class InputHandler {
 public:
     void start();                  // spawns the reader thread

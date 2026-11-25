@@ -17,10 +17,9 @@ int main(int argc, char* argv[]) {
                       << "Terminal hacking puzzle. Without arguments a menu opens:\n"
                       << "start (all levels in order), choose level, or exit.\n"
                       << "With a map file the game starts directly on that map.\n"
-                      << "In game: w/a/s/d or arrow keys + Enter steer (the packet keeps\n"
-                      << "sliding and turns into the last pressed direction as soon as\n"
-                      << "the way is open), x + Enter stops, q + Enter quits.\n"
-                      << "Reach the exit 'X'.\n";
+                      << "In game (raw mode, single keypress, no Enter): w/a/s/d or arrow\n"
+                      << "keys send the packet along a path to the next node; keys pressed\n"
+                      << "while it travels are ignored, q quits. Reach the exit 'X'.\n";
             return 0;
         }
         mapPath = arg;
@@ -31,8 +30,7 @@ int main(int argc, char* argv[]) {
 
     if (!mapPath.empty()) {
         NetworkMap map;
-        // The "../" fallback lets the game also run from inside build/.
-        if (!map.load(mapPath) && !map.load("../" + mapPath)) {
+        if (!map.load(mapPath)) {
             std::cerr << "Error: could not load map file: " << mapPath << '\n';
             return 1;
         }
